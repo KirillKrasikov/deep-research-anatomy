@@ -17,7 +17,7 @@ async def langfuse_client_manager(settings: Settings) -> AsyncGenerator[Langfuse
     client = Langfuse(
         public_key=settings.langfuse_public_key,
         secret_key=settings.langfuse_secret_key.get_secret_value(),
-        base_url=settings.langfuse_host.encoded_string(),
+        base_url=settings.langfuse_base_url.encoded_string(),
         sample_rate=settings.langfuse_sample_rate,
     )
     try:

@@ -9,7 +9,7 @@ class Settings(BaseSettings):
 
     app_name: str = "deep-research-anatomy"
 
-    langfuse_host: HttpUrl = HttpUrl("http://localhost:3000")
+    langfuse_base_url: HttpUrl = HttpUrl("http://localhost:3000")
     langfuse_public_key: str
     langfuse_secret_key: SecretStr
     langfuse_sample_rate: float = Field(default=1.0, ge=0.0, le=1.0)
