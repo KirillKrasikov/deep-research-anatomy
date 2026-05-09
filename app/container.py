@@ -11,8 +11,6 @@ from langfuse.langchain import CallbackHandler
 
 from app.settings import Settings, get_settings
 
-LLM_MAX_TOKENS = 8192
-
 
 @asynccontextmanager
 async def langfuse_client_manager(settings: Settings) -> AsyncGenerator[Langfuse, None]:
@@ -38,7 +36,8 @@ def _get_chat_anthropic(settings: Settings, model: str) -> ChatAnthropic:
         temperature=0.0,
         api_key=settings.anthropic_api_key,
         base_url=settings.anthropic_base_url.encoded_string(),
-        max_tokens=LLM_MAX_TOKENS,
+        max_tokens=settings.anthropic_max_tokens,
+        effort=settings.anthropic_effort,
     )
 
 
