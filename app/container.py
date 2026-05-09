@@ -1,7 +1,7 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from dependency_injector.containers import DeclarativeContainer
+from dependency_injector.containers import DeclarativeContainer, WiringConfiguration
 from dependency_injector.ext.starlette import Lifespan
 from dependency_injector.providers import Factory, Resource, Self, Singleton
 from fastapi import FastAPI
@@ -9,6 +9,7 @@ from langchain_anthropic import ChatAnthropic
 from langfuse import Langfuse
 from langfuse.langchain import CallbackHandler
 
+from app.agents.react_researcher import ReactResearchAgent
 from app.settings import Settings, get_settings
 
 
@@ -54,6 +55,8 @@ def llm_sota_manager(settings: Settings) -> ChatAnthropic:
 
 
 class Container(DeclarativeContainer):
+    wiring_config = WiringConfiguration(packages=["app"], auto_wire=True)
+
     __self__ = Self()
     settings = Singleton(provides=get_settings)
 
@@ -66,6 +69,12 @@ class Container(DeclarativeContainer):
     llm_fast = Factory(provides=llm_fast_manager, settings=settings)
     llm_balanced = Factory(provides=llm_balanced_manager, settings=settings)
     llm_sota = Factory(provides=llm_sota_manager, settings=settings)
+
+    react_researcher = Factory(
+        provides=ReactResearchAgent,
+        llm=llm_balanced,
+        langfuse_callback_handler=langfuse_callback_handler,
+    )
 
     lifespan = Singleton(provides=Lifespan, container=__self__)
     app = Singleton(provides=FastAPI, lifespan=lifespan)

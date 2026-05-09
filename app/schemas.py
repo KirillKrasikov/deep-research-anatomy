@@ -1,16 +1,26 @@
-from typing import Any
+from typing import Any, Literal, Self
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
-class Message(BaseModel):
-    role: str = "user"
+class ChatMessageInput(BaseModel):
+    role: Literal["system", "user", "assistant", "tool"]
     content: str
+    name: str | None = None
+    tool_call_id: str | None = None
+
+    @model_validator(mode="after")
+    def validate_tool(self) -> Self:
+        if self.role == "tool" and not self.tool_call_id:
+            msg = "Для role=tool нужен непустой tool_call_id"
+            raise ValueError(msg)
+
+        return self
 
 
 class ChatCompletionRequest(BaseModel):
     model: str
-    messages: list[Message]
+    messages: list[ChatMessageInput] = Field(min_length=1)
     stream: bool = False
     user: str | None = None
 
