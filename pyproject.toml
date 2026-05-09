@@ -1,0 +1,37 @@
+[project]
+name = "deep-research-anatomy"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "dependency-injector",
+    "fastapi",
+    "langchain",
+    "langchain-anthropic",
+    "langfuse",
+    "langgraph",
+    "pydantic",
+    "pydantic-settings",
+    "uvicorn",
+]
+
+[dependency-groups]
+dev = [
+    "pre-commit",
+]
+
+
+[tool.ruff]
+line-length = 120
+lint.select = ["ALL"]
+lint.ignore = ["ANN", "D", "EM101", "FA", "G004", "RUF001", "RUF002", "RUF003", "S101", "S608", "TC006", "TRY003"]
+target-version = "py312"
+
+[tool.mypy]
+plugins = ["pydantic.mypy"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]

@@ -1,0 +1,28 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: end-of-file-fixer
+        fail_fast: true
+      - id: trailing-whitespace
+        fail_fast: true
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.9.5
+    hooks:
+      - id: uv-lock
+  - repo: local
+    hooks:
+      - id: format
+        name: format
+        entry: uv run make format
+        language: system
+        pass_filenames: false
+        types: [ python ]
+        fail_fast: true
+      - id: lint
+        name: lint
+        entry: uv run make lint
+        language: system
+        pass_filenames: false
+        types: [ python ]
+        fail_fast: true
