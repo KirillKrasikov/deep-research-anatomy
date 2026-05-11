@@ -75,13 +75,14 @@ def build_chat_completion_payload(
     *,
     model: str,
     chunk: AIMessageChunk,
+    research_artifacts: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     text = ai_chunk_content_to_text(chunk)
 
     meta = chunk.response_metadata or {}
     finish = meta.get("stop_reason")
 
-    return {
+    payload: dict[str, Any] = {
         "id": f"chatcmpl-{uuid.uuid4().hex[:24]}",
         "object": "chat.completion",
         "created": int(time.time()),
@@ -95,3 +96,11 @@ def build_chat_completion_payload(
         ],
         "usage": {},
     }
+
+    if research_artifacts is not None:
+        payload["brief"] = research_artifacts["brief"]
+        payload["draft"] = research_artifacts["draft"]
+        payload["notes"] = research_artifacts["notes"]
+        payload["final_report"] = research_artifacts["final_report"]
+
+    return payload

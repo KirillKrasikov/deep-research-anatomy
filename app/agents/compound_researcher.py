@@ -1,7 +1,9 @@
+import asyncio
 from collections.abc import AsyncIterator, Sequence
-from typing import cast
+from typing import Any, cast
 
 from langchain_anthropic import ChatAnthropic
+from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.messages import AIMessageChunk, BaseMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langfuse.langchain import CallbackHandler
@@ -21,6 +23,10 @@ from app.agents.supervisor import (
     route_after_supervisor,
 )
 from app.agents.write import build_write_node
+from app.services.research_run import (
+    CompoundStageHandler,
+    compound_state_to_chunk,
+)
 
 WRITE_NODE_NAME = "write"
 
@@ -72,15 +78,41 @@ class CompoundResearchAgent(BaseResearchAgent):
         self._langfuse_callback_handler = langfuse_callback_handler
         self._graph = _build_compound_graph(llm)
 
-    def _invoke_config(self) -> RunnableConfig | None:
-        if self._langfuse_callback_handler is None:
+    def _runnable_config(self, *extra_handlers: AsyncCallbackHandler) -> RunnableConfig | None:
+        callbacks: list[Any] = []
+
+        if self._langfuse_callback_handler is not None:
+            callbacks.append(self._langfuse_callback_handler)
+
+        callbacks.extend(extra_handlers)
+
+        if not callbacks:
             return None
 
-        return RunnableConfig(callbacks=[self._langfuse_callback_handler])
+        return RunnableConfig(callbacks=callbacks)
+
+    async def ainvoke_compound(
+        self,
+        messages: Sequence[BaseMessage],
+        *,
+        progress_queue: asyncio.Queue[dict[str, Any]] | None = None,
+    ) -> AgentState:
+        stage = CompoundStageHandler(progress_queue=progress_queue)
+        config = self._runnable_config(stage)
+        query = _extract_query(messages)
+        initial: AgentState = {"query": query, "messages": [], "notes": []}
+
+        return cast(AgentState, await self._graph.ainvoke(initial, config=config))
+
+    async def complete(self, messages: Sequence[BaseMessage]) -> AIMessageChunk:
+        state = await self.ainvoke_compound(messages, progress_queue=None)
+
+        return compound_state_to_chunk(state)
 
     async def astream(self, messages: Sequence[BaseMessage]) -> AsyncIterator[AIMessageChunk]:
         query = _extract_query(messages)
-        config = self._invoke_config()
+        stage = CompoundStageHandler()
+        config = self._runnable_config(stage)
         initial: AgentState = {"query": query, "messages": [], "notes": []}
 
         async for event in self._graph.astream_events(initial, version="v2", config=config):

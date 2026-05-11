@@ -13,12 +13,12 @@ class BaseResearchAgent(ABC):
     def astream(self, messages: Sequence[BaseMessage]) -> AsyncIterator[AIMessageChunk]: ...
 
     async def complete(self, messages: Sequence[BaseMessage]) -> AIMessageChunk:
-        last: AIMessageChunk | None = None
+        merged: AIMessageChunk | None = None
 
         async for chunk in self.astream(messages):
-            last = chunk
+            merged = chunk if merged is None else merged + chunk
 
-        if last is None:
+        if merged is None:
             return AIMessageChunk(content="")
 
-        return last
+        return merged

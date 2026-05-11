@@ -1,6 +1,6 @@
 from typing import Any, Literal, Self
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class ChatMessageInput(BaseModel):
@@ -19,9 +19,13 @@ class ChatMessageInput(BaseModel):
 
 
 class ChatCompletionRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
     model: str
     messages: list[ChatMessageInput] = Field(min_length=1)
     stream: bool = False
+    stream_progress: bool = False
+    include_research_artifacts: bool = False
     user: str | None = None
 
 
