@@ -8,13 +8,14 @@ from app.agents._context import today_iso
 from app.agents._state import ResearcherState
 from app.agents._text import content_to_text
 
-COMPRESS_SYSTEM_PROMPT = """Сегодня: {today}.
-Сожми ход поиска в заметки.
+COMPRESS_SYSTEM_PROMPT = """Сожми ход поиска в заметки.
 Факты, цифры, имена и URL — дословно, без перефразирования.
 Формат:
 - тезисы вида `- утверждение [N]`;
 - в конце раздел `## Sources` со списком `[N] url — название`.
 Не выдумывай факты, которых нет в ленте. Если по задаче ничего не нашлось — так и напиши.
+
+Сегодня: {today}.
 """
 
 

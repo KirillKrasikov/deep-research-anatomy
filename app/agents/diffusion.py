@@ -8,8 +8,7 @@ from app.agents._context import today_iso
 from app.agents._state import AgentState
 from app.agents._text import content_to_text
 
-DIFFUSION_SYSTEM_PROMPT = """Сегодня: {today}.
-Составь draft ответа на запрос пользователя из своих знаний.
+DIFFUSION_SYSTEM_PROMPT = """Составь draft ответа на запрос пользователя из своих знаний.
 Жёсткое правило:
 - структуру разделов и общеизвестные принципы пиши прямо;
 - любые конкретные значения (даты, цены, адреса, расписания, имена нишевых событий,
@@ -20,6 +19,8 @@ DIFFUSION_SYSTEM_PROMPT = """Сегодня: {today}.
 Если задача про планирование или актуальные данные — почти весь draft будет в маркерах,
 и это правильно: draft превращается в скелет с research-вопросами.
 Markdown.
+
+Сегодня: {today}.
 """
 
 

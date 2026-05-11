@@ -11,8 +11,7 @@ from app.agents._context import today_iso
 from app.agents._state import AgentState, ResearcherState
 from app.agents.think import think_tool
 
-SUPERVISOR_SYSTEM_PROMPT = """Сегодня: {today}.
-Ты supervisor исследования.
+SUPERVISOR_SYSTEM_PROMPT = """Ты supervisor исследования.
 Тебе даны brief и draft с маркерами [RESEARCH_NEEDED].
 Каждый маркер — отдельный вызов dispatch_researcher с точной формулировкой задачи.
 Запускай независимые dispatch_researcher параллельно одним сообщением.
@@ -26,6 +25,8 @@ SUPERVISOR_SYSTEM_PROMPT = """Сегодня: {today}.
 # Draft
 
 {draft}
+
+Сегодня: {today}.
 """
 
 

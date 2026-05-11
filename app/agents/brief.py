@@ -8,11 +8,12 @@ from app.agents._context import today_iso
 from app.agents._state import AgentState
 from app.agents._text import content_to_text
 
-BRIEF_SYSTEM_PROMPT = """Сегодня: {today}.
-Преобразуй запрос пользователя в research brief.
+BRIEF_SYSTEM_PROMPT = """Преобразуй запрос пользователя в research brief.
 Сформулируй: уточнённую цель, ключевые вопросы (столько, сколько нужно для полного ответа),
 параллельные подзадачи, известный из запроса контекст.
 Учитывай текущую дату при оценке актуальности вопросов.
+
+Сегодня: {today}.
 """
 
 

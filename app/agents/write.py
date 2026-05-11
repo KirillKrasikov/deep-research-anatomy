@@ -8,8 +8,7 @@ from app.agents._context import today_iso
 from app.agents._state import AgentState
 from app.agents._text import content_to_text
 
-WRITE_SYSTEM_PROMPT = """Сегодня: {today}.
-Собери финальный отчёт по brief, draft и заметкам researchers.
+WRITE_SYSTEM_PROMPT = """Собери финальный отчёт по brief, draft и заметкам researchers.
 
 Целься в 4 оси качества:
 - Comprehensiveness: покрой все ключевые вопросы из brief, не пропускай аспекты.
@@ -25,6 +24,8 @@ WRITE_SYSTEM_PROMPT = """Сегодня: {today}.
 - без воды и без повторов между разделами.
 
 Markdown.
+
+Сегодня: {today}.
 """
 
 

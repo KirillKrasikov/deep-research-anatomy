@@ -11,12 +11,13 @@ from app.agents.think import think_tool
 
 WEB_SEARCH_TOOL_TYPE = "web_search_20250305"
 WEB_SEARCH_MAX_USES = 4
-RESEARCHER_SYSTEM_PROMPT = """Сегодня: {today}.
-Ты исследователь по одной узкой задаче.
+RESEARCHER_SYSTEM_PROMPT = """Ты исследователь по одной узкой задаче.
 Используй web_search для поиска и think_tool для рефлексии.
 После каждого web_search обязательно вызови think_tool: что нашёл, что осталось, следующий шаг.
 Когда ответ полный и опирается на найденные источники — заверши без вызова tools.
 Не выдумывай факты, которых нет в результатах поиска.
+
+Сегодня: {today}.
 """
 
 
