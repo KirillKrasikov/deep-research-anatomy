@@ -1,6 +1,8 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import Any, cast
 
+import anthropic._base_client as anthropic_base_client
 from dependency_injector.containers import DeclarativeContainer, WiringConfiguration
 from dependency_injector.ext.starlette import Lifespan
 from dependency_injector.providers import Factory, Resource, Self, Singleton
@@ -14,6 +16,12 @@ from app.agents.react_researcher import ReactResearchAgent
 from app.settings import Settings, get_settings
 
 
+def _apply_anthropic_retry_backoff(settings: Settings) -> None:
+    mod = cast(Any, anthropic_base_client)
+    mod.INITIAL_RETRY_DELAY = settings.anthropic_retry_initial_delay_seconds
+    mod.MAX_RETRY_DELAY = settings.anthropic_retry_max_delay_seconds
+
+
 @asynccontextmanager
 async def langfuse_client_manager(settings: Settings) -> AsyncGenerator[Langfuse, None]:
     client = Langfuse(
@@ -21,6 +29,7 @@ async def langfuse_client_manager(settings: Settings) -> AsyncGenerator[Langfuse
         secret_key=settings.langfuse_secret_key.get_secret_value(),
         base_url=settings.langfuse_base_url.encoded_string(),
         sample_rate=settings.langfuse_sample_rate,
+        timeout=settings.langfuse_timeout_seconds,
     )
     try:
         yield client
@@ -33,6 +42,8 @@ def langfuse_callback_handler_manager(langfuse: Langfuse, settings: Settings) ->
 
 
 def _get_chat_anthropic(settings: Settings, model: str) -> ChatAnthropic:
+    _apply_anthropic_retry_backoff(settings)
+
     return ChatAnthropic(
         model=model,
         temperature=0.0,
@@ -40,6 +51,7 @@ def _get_chat_anthropic(settings: Settings, model: str) -> ChatAnthropic:
         base_url=settings.anthropic_base_url.encoded_string(),
         max_tokens=settings.anthropic_max_tokens,
         effort=settings.anthropic_effort,
+        max_retries=settings.anthropic_max_retries,
     )
 
 

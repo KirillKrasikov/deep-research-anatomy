@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     langfuse_secret_key: SecretStr
     langfuse_sample_rate: float = Field(default=1.0, ge=0.0, le=1.0)
     langfuse_label: str = "latest"
+    langfuse_timeout_seconds: int = Field(default=30, ge=1, le=300)
 
     anthropic_base_url: HttpUrl = HttpUrl("https://api.anthropic.com")
     anthropic_api_key: SecretStr
@@ -22,6 +23,9 @@ class Settings(BaseSettings):
     anthropic_model_sota: str = "claude-opus-4-7"
     anthropic_max_tokens: int = 32_000
     anthropic_effort: str = "high"
+    anthropic_max_retries: int = Field(default=3, ge=0, le=15)
+    anthropic_retry_initial_delay_seconds: float = Field(default=1.0, ge=0.1)
+    anthropic_retry_max_delay_seconds: float = Field(default=16.0, ge=0.5)
 
 
 @cache
