@@ -9,6 +9,7 @@ from langchain_anthropic import ChatAnthropic
 from langfuse import Langfuse
 from langfuse.langchain import CallbackHandler
 
+from app.agents.compound_researcher import CompoundResearchAgent
 from app.agents.react_researcher import ReactResearchAgent
 from app.settings import Settings, get_settings
 
@@ -72,6 +73,11 @@ class Container(DeclarativeContainer):
 
     react_researcher = Factory(
         provides=ReactResearchAgent,
+        llm=llm_balanced,
+        langfuse_callback_handler=langfuse_callback_handler,
+    )
+    compound_researcher = Factory(
+        provides=CompoundResearchAgent,
         llm=llm_balanced,
         langfuse_callback_handler=langfuse_callback_handler,
     )

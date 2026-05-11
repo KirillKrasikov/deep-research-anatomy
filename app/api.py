@@ -1,5 +1,5 @@
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from typing import Annotated, Any
 
 import fastapi
@@ -8,8 +8,9 @@ from fastapi import Depends, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.status import HTTP_400_BAD_REQUEST
 
-from app.agents.react_researcher import ReactResearchAgent
+from app.agents.base import BaseResearchAgent
 from app.container import Container
+from app.enums import AssistantType
 from app.schemas import ChatCompletionRequest
 from app.services.chat_completion import (
     build_chat_completion_payload,
@@ -32,9 +33,13 @@ async def get_models() -> dict[str, Any]:
 @inject
 async def create_chat_completion(
     request: ChatCompletionRequest,
-    agent: Annotated[
-        ReactResearchAgent,
-        Depends(Provide[Container.react_researcher]),
+    react_factory: Annotated[
+        Callable[[], BaseResearchAgent],
+        Depends(Provide[Container.react_researcher.provider]),
+    ],
+    compound_factory: Annotated[
+        Callable[[], BaseResearchAgent],
+        Depends(Provide[Container.compound_researcher.provider]),
     ],
 ) -> StreamingResponse | JSONResponse:
     if not any(m.role == "user" for m in request.messages):
@@ -42,6 +47,8 @@ async def create_chat_completion(
             status_code=HTTP_400_BAD_REQUEST,
             detail="Нужно хотя бы одно сообщение с role=user",
         )
+
+    agent = _resolve_agent(request.model, react_factory, compound_factory)
 
     lc_messages = chat_messages_to_langchain(request.messages)
     final = await agent.complete(lc_messages)
@@ -51,6 +58,19 @@ async def create_chat_completion(
         return StreamingResponse(_sse_final_only(payload), media_type="text/event-stream")
 
     return JSONResponse(content=payload)
+
+
+def _resolve_agent(
+    model: str,
+    react_factory: Callable[[], BaseResearchAgent],
+    compound_factory: Callable[[], BaseResearchAgent],
+) -> BaseResearchAgent:
+    match model:
+        case AssistantType.COMPOUND:
+            return compound_factory()
+
+        case _:
+            return react_factory()
 
 
 async def _sse_final_only(payload: dict[str, Any]) -> AsyncIterator[str]:
