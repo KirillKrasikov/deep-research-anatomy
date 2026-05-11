@@ -1,5 +1,6 @@
+import inspect
 import json
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Annotated, Any
 
 import fastapi
@@ -34,11 +35,11 @@ async def get_models() -> dict[str, Any]:
 async def create_chat_completion(
     request: ChatCompletionRequest,
     react_factory: Annotated[
-        Callable[[], BaseResearchAgent],
+        Callable[[], BaseResearchAgent | Awaitable[BaseResearchAgent]],
         Depends(Provide[Container.react_researcher.provider]),
     ],
     compound_factory: Annotated[
-        Callable[[], BaseResearchAgent],
+        Callable[[], BaseResearchAgent | Awaitable[BaseResearchAgent]],
         Depends(Provide[Container.compound_researcher.provider]),
     ],
 ) -> StreamingResponse | JSONResponse:
@@ -48,9 +49,8 @@ async def create_chat_completion(
             detail="Нужно хотя бы одно сообщение с role=user",
         )
 
-    agent = _resolve_agent(request.model, react_factory, compound_factory)
-
     lc_messages = chat_messages_to_langchain(request.messages)
+    agent = await _instantiate_agent(request.model, react_factory, compound_factory)
     final = await agent.complete(lc_messages)
     payload = build_chat_completion_payload(model=request.model, chunk=final)
 
@@ -60,17 +60,23 @@ async def create_chat_completion(
     return JSONResponse(content=payload)
 
 
-def _resolve_agent(
+async def _instantiate_agent(
     model: str,
-    react_factory: Callable[[], BaseResearchAgent],
-    compound_factory: Callable[[], BaseResearchAgent],
+    react_factory: Callable[[], BaseResearchAgent | Awaitable[BaseResearchAgent]],
+    compound_factory: Callable[[], BaseResearchAgent | Awaitable[BaseResearchAgent]],
 ) -> BaseResearchAgent:
+    # Зависимости Agent-фабрик тянут async Resource (langfuse) — sync-вызов фабрики отдаёт Future.
     match model:
         case AssistantType.COMPOUND:
-            return compound_factory()
+            raw = compound_factory()
 
         case _:
-            return react_factory()
+            raw = react_factory()
+
+    if inspect.isawaitable(raw):
+        return await raw
+
+    return raw
 
 
 async def _sse_final_only(payload: dict[str, Any]) -> AsyncIterator[str]:
