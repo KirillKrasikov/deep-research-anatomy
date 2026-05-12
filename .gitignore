@@ -1,7 +1,7 @@
-.cursor
 .env
 .idea
 .venv
 .vscode
 __pycache__
 presentation.md
+data/
