@@ -18,3 +18,4 @@ class ResearcherState(TypedDict, total=False):
     task: str
     messages: Annotated[list[BaseMessage], add_messages]
     notes: str
+    completed_tool_rounds: int
