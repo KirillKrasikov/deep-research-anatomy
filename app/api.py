@@ -20,6 +20,7 @@ from app.services.chat_completion import (
     chat_messages_to_langchain,
 )
 from app.services.research_run import (
+    build_compound_run_label,
     compound_artifacts_from_state,
     compound_state_to_chunk,
     iter_compound_progress_queue,
@@ -60,11 +61,15 @@ async def create_chat_completion(
     agent = await _instantiate_agent(request.model, react_factory, compound_factory)
 
     if isinstance(agent, CompoundResearchAgent):
+        compound_label = build_compound_run_label(request.model, lc_messages)
+
         if request.stream and request.stream_progress:
 
             async def sse_with_progress() -> AsyncIterator[str]:
                 queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
-                task = asyncio.create_task(agent.ainvoke_compound(lc_messages, progress_queue=queue))
+                task = asyncio.create_task(
+                    agent.ainvoke_compound(lc_messages, progress_queue=queue, run_label=compound_label),
+                )
 
                 async for item in iter_compound_progress_queue(queue, task):
                     yield f"data: {json.dumps(item, ensure_ascii=False)}\n\n"
@@ -82,7 +87,11 @@ async def create_chat_completion(
 
             return StreamingResponse(sse_with_progress(), media_type="text/event-stream")
 
-        state = await agent.ainvoke_compound(lc_messages, progress_queue=None)
+        state = await agent.ainvoke_compound(
+            lc_messages,
+            progress_queue=None,
+            run_label=compound_label,
+        )
         chunk = compound_state_to_chunk(state)
         artifacts = compound_artifacts_from_state(state) if request.include_research_artifacts else None
 

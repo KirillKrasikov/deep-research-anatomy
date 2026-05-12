@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from collections.abc import AsyncIterator, Sequence
 from typing import Any, cast
 
@@ -21,14 +22,19 @@ from app.agents.supervisor import (
     build_supervisor_llm_node,
     build_supervisor_tools_node,
     route_after_supervisor,
+    route_after_tools,
 )
 from app.agents.write import build_write_node
+from app.enums import AssistantType
 from app.services.research_run import (
     CompoundStageHandler,
+    build_compound_run_label,
     compound_state_to_chunk,
 )
 
 WRITE_NODE_NAME = "write"
+
+LOG = logging.getLogger(__name__)
 
 
 def _extract_query(messages: Sequence[BaseMessage]) -> str:
@@ -48,11 +54,11 @@ def _build_compound_graph(llm: ChatAnthropic) -> CompiledStateGraph[AgentState]:
     dispatch_tool = build_dispatch_tool(researcher_graph)
 
     graph: StateGraph[AgentState] = StateGraph(AgentState)
-    graph.add_node("brief", build_brief_node(llm))  # type: ignore[arg-type]
-    graph.add_node("diffusion", build_diffusion_node(llm))  # type: ignore[arg-type]
-    graph.add_node("supervisor_llm", build_supervisor_llm_node(llm, dispatch_tool))  # type: ignore[arg-type]
-    graph.add_node("tools", build_supervisor_tools_node(dispatch_tool))  # type: ignore[arg-type]
-    graph.add_node(WRITE_NODE_NAME, build_write_node(llm))  # type: ignore[arg-type]
+    graph.add_node("brief", build_brief_node(llm))  # type: ignore[call-overload]
+    graph.add_node("diffusion", build_diffusion_node(llm))  # type: ignore[call-overload]
+    graph.add_node("supervisor_llm", build_supervisor_llm_node(llm, dispatch_tool))  # type: ignore[call-overload]
+    graph.add_node("tools", build_supervisor_tools_node(dispatch_tool))  # type: ignore[call-overload]
+    graph.add_node(WRITE_NODE_NAME, build_write_node(llm))  # type: ignore[call-overload]
 
     graph.add_edge(START, "brief")
     graph.add_edge("brief", "diffusion")
@@ -62,7 +68,11 @@ def _build_compound_graph(llm: ChatAnthropic) -> CompiledStateGraph[AgentState]:
         route_after_supervisor,
         {"tools": "tools", "write": WRITE_NODE_NAME},
     )
-    graph.add_edge("tools", "supervisor_llm")
+    graph.add_conditional_edges(
+        "tools",
+        route_after_tools,
+        {"supervisor_llm": "supervisor_llm", "write": WRITE_NODE_NAME},
+    )
     graph.add_edge(WRITE_NODE_NAME, END)
 
     return graph.compile()
@@ -96,24 +106,42 @@ class CompoundResearchAgent(BaseResearchAgent):
         messages: Sequence[BaseMessage],
         *,
         progress_queue: asyncio.Queue[dict[str, Any]] | None = None,
+        run_label: str | None = None,
     ) -> AgentState:
-        stage = CompoundStageHandler(progress_queue=progress_queue)
+        stage = CompoundStageHandler(progress_queue=progress_queue, run_label=run_label)
         config = self._runnable_config(stage)
         query = _extract_query(messages)
-        initial: AgentState = {"query": query, "messages": [], "notes": []}
+        initial: AgentState = {
+            "query": query,
+            "messages": [],
+            "notes": [],
+            "completed_supervisor_tool_rounds": 0,
+        }
+
+        if run_label:
+            LOG.info("compound [%s]: запуск графа", run_label)
+        else:
+            LOG.info("compound: запуск графа")
 
         return cast(AgentState, await self._graph.ainvoke(initial, config=config))
 
     async def complete(self, messages: Sequence[BaseMessage]) -> AIMessageChunk:
-        state = await self.ainvoke_compound(messages, progress_queue=None)
+        label = build_compound_run_label(AssistantType.COMPOUND, messages)
+        state = await self.ainvoke_compound(messages, progress_queue=None, run_label=label)
 
         return compound_state_to_chunk(state)
 
     async def astream(self, messages: Sequence[BaseMessage]) -> AsyncIterator[AIMessageChunk]:
         query = _extract_query(messages)
-        stage = CompoundStageHandler()
+        label = build_compound_run_label(AssistantType.COMPOUND, messages)
+        stage = CompoundStageHandler(run_label=label)
         config = self._runnable_config(stage)
-        initial: AgentState = {"query": query, "messages": [], "notes": []}
+        initial: AgentState = {
+            "query": query,
+            "messages": [],
+            "notes": [],
+            "completed_supervisor_tool_rounds": 0,
+        }
 
         async for event in self._graph.astream_events(initial, version="v2", config=config):
             if event["event"] != "on_chat_model_stream":

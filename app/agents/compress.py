@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from collections.abc import Callable, Coroutine, Sequence
 from typing import Any
 
@@ -7,6 +9,8 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, System
 from app.agents._context import today_iso
 from app.agents._state import ResearcherState
 from app.agents._text import content_to_text
+
+LOG = logging.getLogger(__name__)
 
 COMPRESS_SYSTEM_PROMPT = """Сожми ход поиска в заметки.
 Факты, цифры, имена и URL — дословно, без перефразирования.
@@ -19,6 +23,25 @@ COMPRESS_SYSTEM_PROMPT = """Сожми ход поиска в заметки.
 
 Сегодня: {today}.
 """
+
+COMPRESS_FAILED_NOTES = (
+    "Исследователь не смог сжать результаты поиска (таймаут или ошибка провайдера LLM). "
+    "Повторите dispatch_researcher с той же или уточнённой задачей."
+)
+
+COMPRESS_LLM_MAX_ATTEMPTS = 3
+COMPRESS_LLM_RETRY_DELAY_SEC = 1.5
+
+HTTP_STATUS_GATEWAY_TIMEOUT = 504
+
+
+def _is_compress_retryable(exc: Exception) -> bool:
+    code = getattr(exc, "status_code", None)
+
+    if code == HTTP_STATUS_GATEWAY_TIMEOUT:
+        return True
+
+    return type(exc).__name__ == "InternalServerError"
 
 
 def _serialize_block(block: Any) -> str:
@@ -83,14 +106,36 @@ def build_compress_node(llm: ChatAnthropic) -> Callable[[ResearcherState], Corou
     async def compress_node(state: ResearcherState) -> dict[str, str]:
         task = state["task"]
         trail = serialize_trail(state["messages"])
+        messages = [
+            SystemMessage(COMPRESS_SYSTEM_PROMPT.format(today=today_iso())),
+            HumanMessage(f"# Задача\n\n{task}\n\n# Лента поиска\n\n{trail}"),
+        ]
+        last_error: Exception | None = None
 
-        response = await llm.ainvoke(
-            [
-                SystemMessage(COMPRESS_SYSTEM_PROMPT.format(today=today_iso())),
-                HumanMessage(f"# Задача\n\n{task}\n\n# Лента поиска\n\n{trail}"),
-            ],
+        for attempt in range(COMPRESS_LLM_MAX_ATTEMPTS):
+            try:
+                response = await llm.ainvoke(messages)
+
+                return {"notes": content_to_text(response.content)}
+
+            except Exception as exc:
+                last_error = exc
+
+                if not _is_compress_retryable(exc):
+                    raise
+
+                if attempt == COMPRESS_LLM_MAX_ATTEMPTS - 1:
+                    break
+
+                await asyncio.sleep(COMPRESS_LLM_RETRY_DELAY_SEC)
+
+        LOG.warning(
+            "Сжатие ленты исследователя не удалось после %s попыток (задача: %s): %s",
+            COMPRESS_LLM_MAX_ATTEMPTS,
+            task[:200],
+            last_error,
         )
 
-        return {"notes": content_to_text(response.content)}
+        return {"notes": COMPRESS_FAILED_NOTES}
 
     return compress_node

@@ -11,6 +11,7 @@ class AgentState(TypedDict, total=False):
     draft: str
     messages: Annotated[list[BaseMessage], add_messages]
     notes: Annotated[list[str], add]
+    completed_supervisor_tool_rounds: int
     final_report: str
 
 
