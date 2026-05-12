@@ -91,7 +91,7 @@ class CompoundStageHandler(AsyncCallbackHandler):
         if node is None:
             return
 
-        LOG.info("%s: стадия «%s» завершена", self._log_ctx(), node)
+        LOG.info("%s: стадия «%s» успешно завершена", self._log_ctx(), node)
 
         if self._progress_queue is None:
             return
@@ -100,6 +100,37 @@ class CompoundStageHandler(AsyncCallbackHandler):
             "object": "deep_research.stage",
             "node": node,
             "phase": "finished",
+            "ok": True,
+        }
+        await self._progress_queue.put(payload)
+
+    async def on_chain_error(
+        self,
+        error: BaseException,
+        *,
+        run_id: UUID,
+        parent_run_id: UUID | None = None,
+        tags: list[str] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        _ = (run_id, parent_run_id, tags)
+        node = _compound_stage_from_metadata(kwargs)
+
+        if node is None:
+            return
+
+        LOG.error("%s: стадия «%s» завершилась с ошибкой", self._log_ctx(), node, exc_info=error)
+
+        if self._progress_queue is None:
+            return
+
+        payload = {
+            "object": "deep_research.stage",
+            "node": node,
+            "phase": "failed",
+            "ok": False,
+            "error_type": type(error).__name__,
+            "error_message": str(error)[:500],
         }
         await self._progress_queue.put(payload)
 

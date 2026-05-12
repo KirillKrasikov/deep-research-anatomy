@@ -14,15 +14,22 @@ LOG = logging.getLogger(__name__)
 
 COMPRESS_SYSTEM_PROMPT = """Сожми ход поиска в заметки.
 Факты, цифры, имена и URL — дословно, без перефразирования.
-Формат:
-- тезисы вида `- утверждение [N]`;
-- в конце раздел `## Sources` со списком `[N] url — название`.
+Формат ответа — только маркированный список тезисов вида `- утверждение [N]`
+и в конце раздел `## Sources` со списком строк `[N] url — название`.
+Не добавляй других разделов и заголовков (в том числе «Результаты поиска», итоговые отчёты,
+преамбулы вроде «я проанализировал»).
+Не продолжай и не воспроизводи шаблон ленты: запрещены заголовки ролей чата,
+блоки `[search:...]`, `[results]`, `[thinking]` и любая имитация новых вызовов инструментов
+или дорисовка хода поиска.
 Не выдумывай факты, которых нет в ленте. Если по задаче ничего не нашлось — так и напиши.
 Фиксируй только то, что относится к поставленной задаче; всё выходящее за её рамки — отбрасывай.
 Если последний ответ ассистента содержит невыполненные вызовы tools — сожми только то, что уже есть в ленте поиска.
 
 Сегодня: {today}.
 """
+
+COMPRESS_TRAIL_HUMAN_INTRO = """Ниже — сырая лента наблюдений (внутренний формат).
+Не копируй её заголовки и разметку в ответ; извлеки только факты для тезисов и Sources."""
 
 COMPRESS_FAILED_NOTES = (
     "Исследователь не смог сжать результаты поиска (таймаут или ошибка провайдера LLM). "
@@ -81,18 +88,20 @@ def _serialize_block(block: Any) -> str:
 def _serialize_message(message: BaseMessage) -> str:
     match message:
         case HumanMessage():
-            return f"### User\n{content_to_text(message.content)}"
+            return f"### Запрос\n{content_to_text(message.content)}"
 
         case AIMessage() if isinstance(message.content, list):
             parts = [_serialize_block(b) for b in message.content]
 
-            return "### Assistant\n" + "\n".join(p for p in parts if p)
+            return "### Вывод модели\n" + "\n".join(p for p in parts if p)
 
         case AIMessage():
-            return f"### Assistant\n{content_to_text(message.content)}"
+            return f"### Вывод модели\n{content_to_text(message.content)}"
 
         case ToolMessage():
-            return f"### Tool ({message.name or 'tool'})\n{content_to_text(message.content)}"
+            tool_label = message.name or "tool"
+
+            return f"### Заметка инструмента ({tool_label})\n{content_to_text(message.content)}"
 
         case _:
             return ""
@@ -108,7 +117,9 @@ def build_compress_node(llm: ChatAnthropic) -> Callable[[ResearcherState], Corou
         trail = serialize_trail(state["messages"])
         messages = [
             SystemMessage(COMPRESS_SYSTEM_PROMPT.format(today=today_iso())),
-            HumanMessage(f"# Задача\n\n{task}\n\n# Лента поиска\n\n{trail}"),
+            HumanMessage(
+                f"# Задача\n\n{task}\n\n{COMPRESS_TRAIL_HUMAN_INTRO}\n\n# Лента для сжатия\n\n{trail}",
+            ),
         ]
         last_error: Exception | None = None
 
