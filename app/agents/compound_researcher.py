@@ -5,14 +5,13 @@ from typing import Any, cast
 
 from langchain_anthropic import ChatAnthropic
 from langchain_core.callbacks import AsyncCallbackHandler
-from langchain_core.messages import AIMessageChunk, BaseMessage, HumanMessage
+from langchain_core.messages import AIMessageChunk, BaseMessage
 from langchain_core.runnables import RunnableConfig
 from langfuse.langchain import CallbackHandler
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
 from app.agents._state import AgentState
-from app.agents._text import content_to_text
 from app.agents.base import BaseResearchAgent
 from app.agents.brief import build_brief_node
 from app.agents.researcher import build_researcher_graph
@@ -36,30 +35,19 @@ WRITE_NODE_NAME = "write"
 LOG = logging.getLogger(__name__)
 
 
-def _extract_query(messages: Sequence[BaseMessage]) -> str:
-    for message in reversed(messages):
-        match message:
-            case HumanMessage():
-                return content_to_text(message.content)
-
-            case _:
-                continue
-
-    return ""
-
-
 def _build_compound_graph(llm: ChatAnthropic, compress_llm: ChatAnthropic) -> CompiledStateGraph[AgentState]:
     researcher_graph = build_researcher_graph(llm, compress_llm)
     dispatch_tool = build_dispatch_tool(researcher_graph)
 
     graph: StateGraph[AgentState] = StateGraph(AgentState)
-    graph.add_node("brief", build_brief_node(llm))  # type: ignore[arg-type]
-    graph.add_node("supervisor_llm", build_supervisor_llm_node(llm, dispatch_tool))  # type: ignore[arg-type]
-    graph.add_node("tools", build_supervisor_tools_node(dispatch_tool))  # type: ignore[arg-type]
-    graph.add_node(WRITE_NODE_NAME, build_write_node(llm))  # type: ignore[arg-type]
+    # add_node не выводит NodeInputT для наших нод (Command-нода brief к тому же сбивает overload у соседей) —
+    # гасим единообразно через Any, иначе mypy флапает коды ignore между arg-type и call-overload.
+    graph.add_node("brief", cast(Any, build_brief_node(llm)))
+    graph.add_node("supervisor_llm", cast(Any, build_supervisor_llm_node(llm, dispatch_tool)))
+    graph.add_node("tools", cast(Any, build_supervisor_tools_node(dispatch_tool)))
+    graph.add_node(WRITE_NODE_NAME, cast(Any, build_write_node(llm)))
 
     graph.add_edge(START, "brief")
-    graph.add_edge("brief", "supervisor_llm")
     graph.add_conditional_edges(
         "supervisor_llm",
         route_after_supervisor,
@@ -108,9 +96,8 @@ class CompoundResearchAgent(BaseResearchAgent):
     ) -> AgentState:
         stage = CompoundStageHandler(progress_queue=progress_queue, run_label=run_label)
         config = self._runnable_config(stage)
-        query = _extract_query(messages)
         initial: AgentState = {
-            "query": query,
+            "input_messages": list(messages),
             "messages": [],
             "notes": [],
             "completed_supervisor_tool_rounds": 0,
@@ -130,12 +117,11 @@ class CompoundResearchAgent(BaseResearchAgent):
         return compound_state_to_chunk(state)
 
     async def astream(self, messages: Sequence[BaseMessage]) -> AsyncIterator[AIMessageChunk]:
-        query = _extract_query(messages)
         label = build_compound_run_label(AssistantType.COMPOUND, messages)
         stage = CompoundStageHandler(run_label=label)
         config = self._runnable_config(stage)
         initial: AgentState = {
-            "query": query,
+            "input_messages": list(messages),
             "messages": [],
             "notes": [],
             "completed_supervisor_tool_rounds": 0,

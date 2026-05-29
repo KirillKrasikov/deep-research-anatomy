@@ -6,7 +6,7 @@ from langgraph.graph.message import add_messages
 
 
 class AgentState(TypedDict, total=False):
-    query: str
+    input_messages: list[BaseMessage]
     brief: str
     messages: Annotated[list[BaseMessage], add_messages]
     notes: Annotated[list[str], add]

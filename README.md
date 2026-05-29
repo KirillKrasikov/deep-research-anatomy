@@ -11,12 +11,12 @@
 |---|---------|------------|
 | 1 | ReAct researcher (baseline) | [`app/agents/react_researcher.py`](app/agents/react_researcher.py) — `ChatAnthropic` + встроенный `web_search_20250305` |
 | 2 | Supervisor + Researchers | В составе [`compound`](app/agents/compound_researcher.py): [`supervisor.py`](app/agents/supervisor.py), [`researcher.py`](app/agents/researcher.py) |
-| 3 | +Brief | [`brief.py`](app/agents/brief.py) |
+| 3 | +Brief | [`brief.py`](app/agents/brief.py) — с HITL-уточнением: при нехватке данных brief возвращает вопрос пользователю (Command-handoff в `END`) вместо запуска поиска |
 | 4 | +Compress | [`compress.py`](app/agents/compress.py) |
 | 5 | +Write | [`write.py`](app/agents/write.py) |
 | 6 | Diffusion | Не реализовано (draft-скелет ответа с маркерами `[RESEARCH_NEEDED]`) |
 | 7 | Think tool | [`think.py`](app/agents/think.py) |
-| 8 | Steering | Не реализовано (HITL / уточняющие follow-up) |
+| 8 | Steering | Не реализовано (runtime-steering: `interrupt` между итерациями супервайзера). Уточнение на этапе brief — см. #3 |
 | 9 | Verification pipeline | Не реализовано |
 
 
@@ -29,7 +29,8 @@
 flowchart TD
     Start([START])
     Start --> Brief[brief]
-    Brief --> SupLLM[supervisor_llm]
+    Brief -->|нужно уточнение| End([END])
+    Brief -->|данных достаточно| SupLLM[supervisor_llm]
     SupLLM -->|tool_calls| Tools[supervisor_tools]
     SupLLM -->|no_tool_calls| Write[write]
     Tools -->|rounds_lt_max| SupLLM
