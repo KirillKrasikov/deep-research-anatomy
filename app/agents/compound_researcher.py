@@ -15,7 +15,6 @@ from app.agents._state import AgentState
 from app.agents._text import content_to_text
 from app.agents.base import BaseResearchAgent
 from app.agents.brief import build_brief_node
-from app.agents.diffusion import build_diffusion_node
 from app.agents.researcher import build_researcher_graph
 from app.agents.supervisor import (
     build_dispatch_tool,
@@ -49,20 +48,18 @@ def _extract_query(messages: Sequence[BaseMessage]) -> str:
     return ""
 
 
-def _build_compound_graph(llm: ChatAnthropic) -> CompiledStateGraph[AgentState]:
-    researcher_graph = build_researcher_graph(llm)
+def _build_compound_graph(llm: ChatAnthropic, compress_llm: ChatAnthropic) -> CompiledStateGraph[AgentState]:
+    researcher_graph = build_researcher_graph(llm, compress_llm)
     dispatch_tool = build_dispatch_tool(researcher_graph)
 
     graph: StateGraph[AgentState] = StateGraph(AgentState)
-    graph.add_node("brief", build_brief_node(llm))  # type: ignore[call-overload]
-    graph.add_node("diffusion", build_diffusion_node(llm))  # type: ignore[call-overload]
-    graph.add_node("supervisor_llm", build_supervisor_llm_node(llm, dispatch_tool))  # type: ignore[call-overload]
-    graph.add_node("tools", build_supervisor_tools_node(dispatch_tool))  # type: ignore[call-overload]
-    graph.add_node(WRITE_NODE_NAME, build_write_node(llm))  # type: ignore[call-overload]
+    graph.add_node("brief", build_brief_node(llm))  # type: ignore[arg-type]
+    graph.add_node("supervisor_llm", build_supervisor_llm_node(llm, dispatch_tool))  # type: ignore[arg-type]
+    graph.add_node("tools", build_supervisor_tools_node(dispatch_tool))  # type: ignore[arg-type]
+    graph.add_node(WRITE_NODE_NAME, build_write_node(llm))  # type: ignore[arg-type]
 
     graph.add_edge(START, "brief")
-    graph.add_edge("brief", "diffusion")
-    graph.add_edge("diffusion", "supervisor_llm")
+    graph.add_edge("brief", "supervisor_llm")
     graph.add_conditional_edges(
         "supervisor_llm",
         route_after_supervisor,
@@ -82,11 +79,12 @@ class CompoundResearchAgent(BaseResearchAgent):
     def __init__(
         self,
         llm: ChatAnthropic,
+        compress_llm: ChatAnthropic,
         langfuse_callback_handler: CallbackHandler | None,
     ) -> None:
         super().__init__(llm)
         self._langfuse_callback_handler = langfuse_callback_handler
-        self._graph = _build_compound_graph(llm)
+        self._graph = _build_compound_graph(llm, compress_llm)
 
     def _runnable_config(self, *extra_handlers: AsyncCallbackHandler) -> RunnableConfig | None:
         callbacks: list[Any] = []

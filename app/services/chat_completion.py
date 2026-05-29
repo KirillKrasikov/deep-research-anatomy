@@ -99,7 +99,6 @@ def build_chat_completion_payload(
 
     if research_artifacts is not None:
         payload["brief"] = research_artifacts["brief"]
-        payload["draft"] = research_artifacts["draft"]
         payload["notes"] = research_artifacts["notes"]
         payload["final_report"] = research_artifacts["final_report"]
 

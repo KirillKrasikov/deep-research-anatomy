@@ -40,7 +40,7 @@ def _route_after_llm(state: ResearcherState) -> str:
             return "compress"
 
 
-def build_researcher_graph(llm: ChatAnthropic) -> CompiledStateGraph[ResearcherState]:
+def build_researcher_graph(llm: ChatAnthropic, compress_llm: ChatAnthropic) -> CompiledStateGraph[ResearcherState]:
     researcher_llm = llm.bind_tools(
         [
             {"type": WEB_SEARCH_TOOL_TYPE, "name": "web_search", "max_uses": WEB_SEARCH_MAX_USES},
@@ -55,7 +55,7 @@ def build_researcher_graph(llm: ChatAnthropic) -> CompiledStateGraph[ResearcherS
 
         return {"messages": [response]}
 
-    compress_node = build_compress_node(llm)
+    compress_node = build_compress_node(compress_llm)
     think_tools = ToolNode([think_tool])
 
     async def tools_round_node(state: ResearcherState) -> dict[str, Any]:

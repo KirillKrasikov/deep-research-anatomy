@@ -91,6 +91,7 @@ class Container(DeclarativeContainer):
     compound_researcher = Factory(
         provides=CompoundResearchAgent,
         llm=llm_balanced,
+        compress_llm=llm_fast,
         langfuse_callback_handler=langfuse_callback_handler,
     )
 

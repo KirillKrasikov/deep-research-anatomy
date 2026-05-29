@@ -16,7 +16,7 @@ MAX_SUPERVISOR_TOOL_ROUNDS = 2
 
 _DISPATCH_DEFERRED_MESSAGE = (
     "Лимит параллельных исследователей (4) на этот тур исчерпан. "
-    "Объедините близкие маркеры в одну задачу или повторите в следующем раунде."
+    "Объедините близкие вопросы в одну задачу или повторите в следующем раунде."
 )
 
 
@@ -50,26 +50,22 @@ def _plan_supervisor_tool_calls(
 
 
 SUPERVISOR_SYSTEM_PROMPT = """Ты supervisor исследования.
-Тебе даны brief и draft с маркерами [RESEARCH_NEEDED].
-Каждый маркер обычно — отдельный вызов dispatch_researcher с точной формулировкой задачи;
-если несколько маркеров близки по теме, объединяй их в один dispatch_researcher.
+Тебе дан brief: цель, ключевые вопросы и параллельные подзадачи.
+Каждый ключевой вопрос или подзадача обычно — отдельный вызов dispatch_researcher с точной формулировкой;
+если несколько вопросов близки по теме, объединяй их в один dispatch_researcher.
 Запускай независимые dispatch_researcher параллельно одним сообщением,
 но не более 4 за раз (оркестратор тоже ограничивает).
-Если открытых маркеров больше, чем помещается в один тур,
+Если открытых вопросов больше, чем помещается в один тур,
 — выбери самые приоритетные сейчас, остальные в следующем раунде.
 Максимум 2 раунда исследования; после второго раунда оркестратор принудительно переходит
 к финальному отчёту без новых вызовов tools.
 Используй think_tool только если результаты неполные или нужно принять нетривиальное решение о следующем шаге.
-Когда все маркеры закрыты — заверши без вызовов tools.
-Не запускай research-задачи за пределами маркеров из brief и draft.
+Когда все вопросы из brief закрыты — заверши без вызовов tools.
+Не запускай research-задачи за пределами brief.
 
 # Brief
 
 {brief}
-
-# Draft
-
-{draft}
 
 Сегодня: {today}.
 """
@@ -78,7 +74,7 @@ SUPERVISOR_SYSTEM_PROMPT = """Ты supervisor исследования.
 def build_dispatch_tool(researcher_graph: CompiledStateGraph[ResearcherState]) -> BaseTool:
     @tool
     async def dispatch_researcher(task: str) -> str:
-        """Запускает исследователя по узкой или объединённой задаче (маркер(ы) [RESEARCH_NEEDED]).
+        """Запускает исследователя по узкой или объединённой задаче (вопрос(ы) из brief).
 
         Возвращает сжатые заметки в формате `тезисы [N] + Sources`.
         """
@@ -104,9 +100,8 @@ def build_supervisor_llm_node(
         sys_text = SUPERVISOR_SYSTEM_PROMPT.format(
             today=today_iso(),
             brief=state["brief"],
-            draft=state["draft"],
         )
-        history = state.get("messages") or [HumanMessage("Распредели исследование по brief и draft.")]
+        history = state.get("messages") or [HumanMessage("Распредели исследование по brief.")]
 
         response = await supervisor_llm.ainvoke([SystemMessage(sys_text), *history])
 

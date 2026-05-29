@@ -5,7 +5,7 @@
 
 ## Паттерны и где они в коде
 
-Ниже **девять** паттернов; в репозитории намеренно два режима API: **baseline ReAct** и **одна сборка LangGraph «compound»**, в которой объединены паттерны **#2–#7** (супервайзер с подагентами, бриф, сжатие трейла, запись отчёта, диффузия черновика, think-tool). Паттерны **#8 Steering** и **#9 Verification pipeline** в коде пока не реализованы.
+Ниже **девять** паттернов; в репозитории намеренно два режима API: **baseline ReAct** и **одна сборка LangGraph «compound»**, в которой объединены паттерны **#2–#5 и #7** (супервайзер с подагентами, бриф, сжатие трейла, запись отчёта, think-tool). Паттерны **#6 Diffusion**, **#8 Steering** и **#9 Verification pipeline** в коде пока не реализованы.
 
 | № | Паттерн | Реализация |
 |---|---------|------------|
@@ -14,7 +14,7 @@
 | 3 | +Brief | [`brief.py`](app/agents/brief.py) |
 | 4 | +Compress | [`compress.py`](app/agents/compress.py) |
 | 5 | +Write | [`write.py`](app/agents/write.py) |
-| 6 | Diffusion | [`diffusion.py`](app/agents/diffusion.py) |
+| 6 | Diffusion | Не реализовано (draft-скелет ответа с маркерами `[RESEARCH_NEEDED]`) |
 | 7 | Think tool | [`think.py`](app/agents/think.py) |
 | 8 | Steering | Не реализовано (HITL / уточняющие follow-up) |
 | 9 | Verification pipeline | Не реализовано |
@@ -29,8 +29,7 @@
 flowchart TD
     Start([START])
     Start --> Brief[brief]
-    Brief --> Diffusion[diffusion]
-    Diffusion --> SupLLM[supervisor_llm]
+    Brief --> SupLLM[supervisor_llm]
     SupLLM -->|tool_calls| Tools[supervisor_tools]
     SupLLM -->|no_tool_calls| Write[write]
     Tools -->|rounds_lt_max| SupLLM

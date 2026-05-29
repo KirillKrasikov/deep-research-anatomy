@@ -8,7 +8,6 @@ from langgraph.graph.message import add_messages
 class AgentState(TypedDict, total=False):
     query: str
     brief: str
-    draft: str
     messages: Annotated[list[BaseMessage], add_messages]
     notes: Annotated[list[str], add]
     completed_supervisor_tool_rounds: int

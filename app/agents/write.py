@@ -20,13 +20,13 @@ HTTP_STATUS_GATEWAY_TIMEOUT = 504
 WRITE_FALLBACK_PREAMBLE = """## Ошибка генерации финального отчёта
 
 Не удалось собрать отчёт через модель после нескольких попыток (таймаут или ошибка провайдера).
-Ниже сохранены запрос, brief, draft и заметки researchers без финальной сборки LLM.
+Ниже сохранены запрос, brief и заметки researchers без финальной сборки LLM.
 
 ---
 
 """
 
-WRITE_SYSTEM_PROMPT = """Собери финальный отчёт по brief, draft и заметкам researchers.
+WRITE_SYSTEM_PROMPT = """Собери финальный отчёт по brief и заметкам researchers.
 
 Целься в 4 оси качества:
 - Comprehensiveness: покрой все ключевые вопросы из brief, не пропускай аспекты.
@@ -35,7 +35,7 @@ WRITE_SYSTEM_PROMPT = """Собери финальный отчёт по brief, 
 - Readability: заголовки, короткие абзацы, таблицы для сравнений, ключевые числа — выделять.
 
 Жёсткие правила:
-- структура — по draft (без маркеров [RESEARCH_NEEDED]);
+- структура — по ключевым вопросам brief;
 - все конкретные факты, цифры и URL — только из заметок, дословно;
 - ничего не добавляй из своих знаний;
 - ссылайся [N], в конце раздел `## Sources` с дедуплицированным списком URL;
@@ -73,7 +73,6 @@ def _write_human_context(state: AgentState) -> str:
     return (
         f"# Запрос\n\n{state['query']}\n\n"
         f"# Brief\n\n{state['brief']}\n\n"
-        f"# Draft\n\n{state['draft']}\n\n"
         f"# Заметки researchers\n\n{_format_notes(state.get('notes') or [])}"
     )
 
