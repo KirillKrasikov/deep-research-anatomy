@@ -3,7 +3,9 @@ from collections.abc import Callable, Coroutine
 from typing import Any, Literal, cast
 
 from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolCall, ToolMessage
+from langchain_core.language_models import LanguageModelInput
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolCall, ToolMessage
+from langchain_core.runnables import Runnable
 from langchain_core.tools import BaseTool, tool
 from langgraph.graph.state import CompiledStateGraph
 
@@ -90,22 +92,34 @@ def build_dispatch_tool(researcher_graph: CompiledStateGraph[ResearcherState]) -
     return dispatch_researcher
 
 
+async def run_supervisor(
+    supervisor_llm: Runnable[LanguageModelInput, BaseMessage],
+    brief: str,
+    history: list[BaseMessage],
+) -> AIMessage:
+    """Паттерн #2 (Supervisor): шаг планирования — раздаёт задачи по brief через dispatch_researcher.
+
+    Узкий контракт: связанная с инструментами модель, текст brief и история сообщений;
+    на выходе — ответ модели (с tool_calls или без, если исследование завершено).
+    Не зависит от AgentState — переносится в свой пайплайн как есть.
+    """
+    sys_text = SUPERVISOR_SYSTEM_PROMPT.format(today=today_iso(), brief=brief)
+    response = await supervisor_llm.ainvoke([SystemMessage(sys_text), *history])
+
+    return cast(AIMessage, response)
+
+
 def build_supervisor_llm_node(
     llm: ChatAnthropic,
     dispatch_tool: BaseTool,
 ) -> Callable[[AgentState], Coroutine[Any, Any, dict[str, list[AIMessage]]]]:
+    """Адаптер run_supervisor под ноду compound-графа: читает brief/messages, пишет messages."""
     supervisor_llm = llm.bind_tools([dispatch_tool, think_tool])
 
     async def supervisor_llm_node(state: AgentState) -> dict[str, list[AIMessage]]:
-        sys_text = SUPERVISOR_SYSTEM_PROMPT.format(
-            today=today_iso(),
-            brief=state["brief"],
-        )
         history = state.get("messages") or [HumanMessage("Распредели исследование по brief.")]
 
-        response = await supervisor_llm.ainvoke([SystemMessage(sys_text), *history])
-
-        return {"messages": [response]}
+        return {"messages": [await run_supervisor(supervisor_llm, state["brief"], history)]}
 
     return supervisor_llm_node
 

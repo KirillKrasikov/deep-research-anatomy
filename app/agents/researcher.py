@@ -1,7 +1,9 @@
 from typing import Any, cast
 
 from langchain_anthropic import ChatAnthropic
-from langchain_core.messages import AIMessage, SystemMessage
+from langchain_core.language_models import LanguageModelInput
+from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
+from langchain_core.runnables import Runnable
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import ToolNode
@@ -40,6 +42,23 @@ def _route_after_llm(state: ResearcherState) -> str:
             return "compress"
 
 
+async def run_researcher(
+    researcher_llm: Runnable[LanguageModelInput, BaseMessage],
+    history: list[BaseMessage],
+) -> AIMessage:
+    """Паттерн #2 (Researcher): шаг исследователя по одной узкой задаче (web_search + think_tool).
+
+    Узкий контракт: связанная с инструментами модель и история сообщений;
+    на выходе — ответ модели (с tool_calls или без, если задача закрыта).
+    Не зависит от ResearcherState — переносится в свой пайплайн как есть.
+    """
+    response = await researcher_llm.ainvoke(
+        [SystemMessage(RESEARCHER_SYSTEM_PROMPT.format(today=today_iso())), *history],
+    )
+
+    return cast(AIMessage, response)
+
+
 def build_researcher_graph(llm: ChatAnthropic, compress_llm: ChatAnthropic) -> CompiledStateGraph[ResearcherState]:
     researcher_llm = llm.bind_tools(
         [
@@ -49,11 +68,7 @@ def build_researcher_graph(llm: ChatAnthropic, compress_llm: ChatAnthropic) -> C
     )
 
     async def researcher_llm_node(state: ResearcherState) -> dict[str, list[AIMessage]]:
-        response = await researcher_llm.ainvoke(
-            [SystemMessage(RESEARCHER_SYSTEM_PROMPT.format(today=today_iso())), *state["messages"]],
-        )
-
-        return {"messages": [response]}
+        return {"messages": [await run_researcher(researcher_llm, state["messages"])]}
 
     compress_node = build_compress_node(compress_llm)
     think_tools = ToolNode([think_tool])

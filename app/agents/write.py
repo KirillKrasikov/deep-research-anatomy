@@ -69,47 +69,57 @@ def _format_notes(notes: list[str]) -> str:
     return "\n\n".join(blocks)
 
 
-def _write_human_context(state: AgentState) -> str:
-    return (
-        f"# Запрос\n\n{state['query']}\n\n"
-        f"# Brief\n\n{state['brief']}\n\n"
-        f"# Заметки researchers\n\n{_format_notes(state.get('notes') or [])}"
+def _report_context(query: str, brief: str, notes: list[str]) -> str:
+    return f"# Запрос\n\n{query}\n\n# Brief\n\n{brief}\n\n# Заметки researchers\n\n{_format_notes(notes)}"
+
+
+async def write_report(llm: ChatAnthropic, query: str, brief: str, notes: list[str]) -> str:
+    """Паттерн #5 (Write): собирает финальный отчёт из brief и заметок researchers.
+
+    Узкий контракт: запрос, brief и список заметок; на выходе — текст отчёта (Markdown).
+    При сбое LLM (таймаут/5xx) повторяет и в конце отдаёт собранный контекст без сборки.
+    Не зависит от AgentState — переносится в свой пайплайн как есть.
+    """
+    context = _report_context(query, brief, notes)
+    messages = [
+        SystemMessage(WRITE_SYSTEM_PROMPT.format(today=today_iso())),
+        HumanMessage(context),
+    ]
+    last_error: Exception | None = None
+
+    for attempt in range(WRITE_LLM_MAX_ATTEMPTS):
+        try:
+            response = await llm.ainvoke(messages)
+
+            return content_to_text(response.content)
+
+        except Exception as exc:
+            last_error = exc
+
+            if not _is_write_retryable(exc):
+                raise
+
+            if attempt == WRITE_LLM_MAX_ATTEMPTS - 1:
+                break
+
+            await asyncio.sleep(WRITE_LLM_RETRY_DELAY_SEC)
+
+    LOG.warning(
+        "Финальный отчёт не сгенерирован после %s попыток (запрос: %s): %s",
+        WRITE_LLM_MAX_ATTEMPTS,
+        query[:200],
+        last_error,
     )
+
+    return WRITE_FALLBACK_PREAMBLE + context
 
 
 def build_write_node(llm: ChatAnthropic) -> Callable[[AgentState], Coroutine[Any, Any, dict[str, str]]]:
+    """Адаптер write_report под ноду compound-графа: читает query/brief/notes, пишет final_report."""
+
     async def write_node(state: AgentState) -> dict[str, str]:
-        context = _write_human_context(state)
-        messages = [
-            SystemMessage(WRITE_SYSTEM_PROMPT.format(today=today_iso())),
-            HumanMessage(context),
-        ]
-        last_error: Exception | None = None
+        report = await write_report(llm, state["query"], state["brief"], state.get("notes") or [])
 
-        for attempt in range(WRITE_LLM_MAX_ATTEMPTS):
-            try:
-                response = await llm.ainvoke(messages)
-
-                return {"final_report": content_to_text(response.content)}
-
-            except Exception as exc:
-                last_error = exc
-
-                if not _is_write_retryable(exc):
-                    raise
-
-                if attempt == WRITE_LLM_MAX_ATTEMPTS - 1:
-                    break
-
-                await asyncio.sleep(WRITE_LLM_RETRY_DELAY_SEC)
-
-        LOG.warning(
-            "Финальный отчёт не сгенерирован после %s попыток (запрос: %s): %s",
-            WRITE_LLM_MAX_ATTEMPTS,
-            state["query"][:200],
-            last_error,
-        )
-
-        return {"final_report": WRITE_FALLBACK_PREAMBLE + context}
+        return {"final_report": report}
 
     return write_node

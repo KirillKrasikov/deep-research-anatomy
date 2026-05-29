@@ -18,15 +18,26 @@ BRIEF_SYSTEM_PROMPT = """Преобразуй запрос пользовате�
 """
 
 
-def build_brief_node(llm: ChatAnthropic) -> Callable[[AgentState], Coroutine[Any, Any, dict[str, str]]]:
-    async def brief_node(state: AgentState) -> dict[str, str]:
-        response = await llm.ainvoke(
-            [
-                SystemMessage(BRIEF_SYSTEM_PROMPT.format(today=today_iso())),
-                HumanMessage(state["query"]),
-            ],
-        )
+async def generate_brief(llm: ChatAnthropic, query: str) -> str:
+    """Паттерн #3 (Brief): превращает запрос пользователя в research brief.
 
-        return {"brief": content_to_text(response.content)}
+    Узкий контракт: на входе только текст запроса, на выходе — текст брифа.
+    Не зависит от AgentState — переносится в свой пайплайн как есть.
+    """
+    response = await llm.ainvoke(
+        [
+            SystemMessage(BRIEF_SYSTEM_PROMPT.format(today=today_iso())),
+            HumanMessage(query),
+        ],
+    )
+
+    return content_to_text(response.content)
+
+
+def build_brief_node(llm: ChatAnthropic) -> Callable[[AgentState], Coroutine[Any, Any, dict[str, str]]]:
+    """Адаптер generate_brief под ноду compound-графа: читает query, пишет brief."""
+
+    async def brief_node(state: AgentState) -> dict[str, str]:
+        return {"brief": await generate_brief(llm, state["query"])}
 
     return brief_node

@@ -111,42 +111,53 @@ def serialize_trail(messages: Sequence[BaseMessage]) -> str:
     return "\n\n".join(_serialize_message(m) for m in messages if m)
 
 
+async def compress_trail(llm: ChatAnthropic, task: str, messages: Sequence[BaseMessage]) -> str:
+    """Паттерн #4 (Compress): сжимает сырую ленту поиска в тезисы + Sources.
+
+    Узкий контракт: задача и список сообщений ленты; на выходе — текст заметок.
+    При сбое LLM (таймаут/5xx) повторяет и в конце отдаёт COMPRESS_FAILED_NOTES.
+    Не зависит от ResearcherState — переносится в свой пайплайн как есть.
+    """
+    trail = serialize_trail(messages)
+    llm_messages = [
+        SystemMessage(COMPRESS_SYSTEM_PROMPT.format(today=today_iso())),
+        HumanMessage(
+            f"# Задача\n\n{task}\n\n{COMPRESS_TRAIL_HUMAN_INTRO}\n\n# Лента для сжатия\n\n{trail}",
+        ),
+    ]
+    last_error: Exception | None = None
+
+    for attempt in range(COMPRESS_LLM_MAX_ATTEMPTS):
+        try:
+            response = await llm.ainvoke(llm_messages)
+
+            return content_to_text(response.content)
+
+        except Exception as exc:
+            last_error = exc
+
+            if not _is_compress_retryable(exc):
+                raise
+
+            if attempt == COMPRESS_LLM_MAX_ATTEMPTS - 1:
+                break
+
+            await asyncio.sleep(COMPRESS_LLM_RETRY_DELAY_SEC)
+
+    LOG.warning(
+        "Сжатие ленты исследователя не удалось после %s попыток (задача: %s): %s",
+        COMPRESS_LLM_MAX_ATTEMPTS,
+        task[:200],
+        last_error,
+    )
+
+    return COMPRESS_FAILED_NOTES
+
+
 def build_compress_node(llm: ChatAnthropic) -> Callable[[ResearcherState], Coroutine[Any, Any, dict[str, str]]]:
+    """Адаптер compress_trail под ноду сабграфа: читает task/messages, пишет notes."""
+
     async def compress_node(state: ResearcherState) -> dict[str, str]:
-        task = state["task"]
-        trail = serialize_trail(state["messages"])
-        messages = [
-            SystemMessage(COMPRESS_SYSTEM_PROMPT.format(today=today_iso())),
-            HumanMessage(
-                f"# Задача\n\n{task}\n\n{COMPRESS_TRAIL_HUMAN_INTRO}\n\n# Лента для сжатия\n\n{trail}",
-            ),
-        ]
-        last_error: Exception | None = None
-
-        for attempt in range(COMPRESS_LLM_MAX_ATTEMPTS):
-            try:
-                response = await llm.ainvoke(messages)
-
-                return {"notes": content_to_text(response.content)}
-
-            except Exception as exc:
-                last_error = exc
-
-                if not _is_compress_retryable(exc):
-                    raise
-
-                if attempt == COMPRESS_LLM_MAX_ATTEMPTS - 1:
-                    break
-
-                await asyncio.sleep(COMPRESS_LLM_RETRY_DELAY_SEC)
-
-        LOG.warning(
-            "Сжатие ленты исследователя не удалось после %s попыток (задача: %s): %s",
-            COMPRESS_LLM_MAX_ATTEMPTS,
-            task[:200],
-            last_error,
-        )
-
-        return {"notes": COMPRESS_FAILED_NOTES}
+        return {"notes": await compress_trail(llm, state["task"], state["messages"])}
 
     return compress_node
