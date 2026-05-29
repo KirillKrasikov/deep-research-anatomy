@@ -12,7 +12,7 @@ from app.agents._text import content_to_text
 
 LOG = logging.getLogger(__name__)
 
-STAGE_NODES = frozenset({"brief", "diffusion", "supervisor_llm", "tools", "write"})
+STAGE_NODES = frozenset({"brief", "supervisor_llm", "tools", "write"})
 
 
 def build_compound_run_label(model: str, messages: Sequence[BaseMessage], preview_max: int = 120) -> str:
@@ -147,7 +147,6 @@ def compound_state_to_chunk(state: AgentState) -> AIMessageChunk:
 def compound_artifacts_from_state(state: AgentState) -> dict[str, Any]:
     return {
         "brief": state.get("brief") or "",
-        "draft": state.get("draft") or "",
         "notes": state.get("notes") or [],
         "final_report": state.get("final_report") or "",
     }
