@@ -4,9 +4,8 @@ from typing import Any
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 
-from app.agents._context import today_iso
-from app.agents._state import ResearcherState
-from app.agents._text import content_to_text
+from app.agents.patterns.helpers import content_to_text, today_iso
+from app.agents.patterns.state import ResearcherState
 
 COMPRESS_SYSTEM_PROMPT = """Сожми ход поиска в заметки.
 Факты, цифры, имена и URL — дословно, без перефразирования.

@@ -4,9 +4,8 @@ from typing import Any
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from app.agents._context import today_iso
-from app.agents._state import AgentState
-from app.agents._text import content_to_text
+from app.agents.patterns.helpers import content_to_text, today_iso
+from app.agents.patterns.state import AgentState
 
 WRITE_SYSTEM_PROMPT = """Собери финальный отчёт по brief и заметкам researchers.
 

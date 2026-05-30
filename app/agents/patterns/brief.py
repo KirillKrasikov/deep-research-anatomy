@@ -7,8 +7,8 @@ from langgraph.graph import END
 from langgraph.types import Command
 from pydantic import BaseModel, Field
 
-from app.agents._context import today_iso
-from app.agents._state import AgentState
+from app.agents.patterns.helpers import today_iso
+from app.agents.patterns.state import AgentState
 
 BRIEF_SYSTEM_PROMPT = """Преобразуй запрос пользователя в research brief.
 Сформулируй: уточнённую цель, ключевые вопросы (столько, сколько нужно для полного ответа),

@@ -6,8 +6,8 @@ from langchain_core.messages import AIMessageChunk, BaseMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langfuse.langchain import CallbackHandler
 
-from app.agents._context import today_iso
 from app.agents.base import BaseResearchAgent
+from app.agents.patterns.helpers import today_iso
 
 WEB_SEARCH_TOOL_TYPE = "web_search_20250305"
 # Бюджет поисков на ход. По умолчанию — узкий (для роли sub-researcher в supervisor_researcher).

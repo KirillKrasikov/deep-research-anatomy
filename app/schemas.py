@@ -23,8 +23,6 @@ class ChatCompletionRequest(BaseModel):
 
     model: str
     messages: list[ChatMessageInput] = Field(min_length=1)
-    stream: bool = False
-    stream_progress: bool = False
     include_research_artifacts: bool = False
     user: str | None = None
 
