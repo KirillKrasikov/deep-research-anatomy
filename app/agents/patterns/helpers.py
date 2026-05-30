@@ -1,4 +1,10 @@
+from datetime import UTC, datetime
 from typing import Any
+
+
+def today_iso() -> str:
+    """Текущая дата в UTC (ISO), для подстановки в конец системных промптов (prefix caching)."""
+    return datetime.now(UTC).date().isoformat()
 
 
 def content_to_text(content: Any) -> str:

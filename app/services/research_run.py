@@ -7,8 +7,8 @@ from uuid import UUID
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.messages import AIMessageChunk, BaseMessage, HumanMessage
 
-from app.agents._state import AgentState
-from app.agents._text import content_to_text
+from app.agents.patterns.helpers import content_to_text
+from app.agents.patterns.state import AgentState
 
 LOG = logging.getLogger(__name__)
 

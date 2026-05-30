@@ -11,18 +11,18 @@ from langfuse.langchain import CallbackHandler
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from app.agents._state import AgentState
 from app.agents.base import BaseResearchAgent
-from app.agents.brief import build_brief_node
-from app.agents.researcher import build_researcher_graph
-from app.agents.supervisor import (
+from app.agents.patterns.brief import build_brief_node
+from app.agents.patterns.researcher import build_researcher_graph
+from app.agents.patterns.state import AgentState
+from app.agents.patterns.supervisor import (
     build_dispatch_tool,
     build_supervisor_llm_node,
     build_supervisor_tools_node,
     route_after_supervisor,
     route_after_tools,
 )
-from app.agents.write import build_write_node
+from app.agents.patterns.write import build_write_node
 from app.enums import AssistantType
 from app.services.research_run import (
     CompoundStageHandler,
