@@ -5,12 +5,12 @@
 
 ## Паттерны и где они в коде
 
-Ниже **девять** паттернов; в репозитории намеренно два режима API: **baseline ReAct** и **одна сборка LangGraph «compound»**, в которой объединены паттерны **#2–#5 и #7** (супервайзер с подагентами, бриф, сжатие трейла, запись отчёта, think-tool). Паттерны **#6 Diffusion**, **#8 Steering** и **#9 Verification pipeline** в коде пока не реализованы.
+Ниже **девять** паттернов; в репозитории три режима API: **baseline ReAct**, изолированный **«supervisor_researcher»** (чистый паттерн #2) и **сборка LangGraph «compound»**, в которой объединены паттерны **#2–#5 и #7** (супервайзер с подагентами, бриф, сжатие трейла, запись отчёта, think-tool). Паттерны **#6 Diffusion**, **#8 Steering** и **#9 Verification pipeline** в коде пока не реализованы.
 
 | № | Паттерн | Реализация |
 |---|---------|------------|
 | 1 | ReAct researcher (baseline) | [`app/agents/react_researcher.py`](app/agents/react_researcher.py) — `ChatAnthropic` + встроенный `web_search_20250305` |
-| 2 | Supervisor + Researchers | В составе [`compound`](app/agents/compound_researcher.py): [`supervisor.py`](app/agents/supervisor.py), [`researcher.py`](app/agents/researcher.py) |
+| 2 | Supervisor + Researchers | Самостоятельный режим `supervisor_researcher` ([`supervisor_researcher.py`](app/agents/supervisor_researcher.py)): супервайзер раздаёт задачи и сам пишет финал, researcher переиспользует ReAct (#1). Также в составе [`compound`](app/agents/compound_researcher.py): [`supervisor.py`](app/agents/supervisor.py), [`researcher.py`](app/agents/researcher.py) |
 | 3 | +Brief | [`brief.py`](app/agents/brief.py) — с HITL-уточнением: при нехватке данных brief возвращает вопрос пользователю (Command-handoff в `END`) вместо запуска поиска |
 | 4 | +Compress | [`compress.py`](app/agents/compress.py) |
 | 5 | +Write | [`write.py`](app/agents/write.py) |
