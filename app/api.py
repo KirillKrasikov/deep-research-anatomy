@@ -1,13 +1,11 @@
-import asyncio
 import inspect
-import json
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import Awaitable, Callable
 from typing import Annotated, Any
 
 import fastapi
 from dependency_injector.wiring import Provide, inject
 from fastapi import Depends, HTTPException
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse
 from starlette.status import HTTP_400_BAD_REQUEST
 
 from app.agents.base import BaseResearchAgent
@@ -23,7 +21,6 @@ from app.services.research_run import (
     build_compound_run_label,
     compound_artifacts_from_state,
     compound_state_to_chunk,
-    iter_compound_progress_queue,
 )
 
 router = fastapi.APIRouter()
@@ -54,7 +51,7 @@ async def create_chat_completion(
         Callable[[], BaseResearchAgent | Awaitable[BaseResearchAgent]],
         Depends(Provide[Container.supervisor_researcher.provider]),
     ],
-) -> StreamingResponse | JSONResponse:
+) -> JSONResponse:
     if not any(m.role == "user" for m in request.messages):
         raise HTTPException(
             status_code=HTTP_400_BAD_REQUEST,
@@ -66,36 +63,7 @@ async def create_chat_completion(
 
     if isinstance(agent, CompoundResearchAgent):
         compound_label = build_compound_run_label(request.model, lc_messages)
-
-        if request.stream and request.stream_progress:
-
-            async def sse_with_progress() -> AsyncIterator[str]:
-                queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
-                task = asyncio.create_task(
-                    agent.ainvoke_compound(lc_messages, progress_queue=queue, run_label=compound_label),
-                )
-
-                async for item in iter_compound_progress_queue(queue, task):
-                    yield f"data: {json.dumps(item, ensure_ascii=False)}\n\n"
-
-                state = await task
-                chunk = compound_state_to_chunk(state)
-                artifacts = compound_artifacts_from_state(state) if request.include_research_artifacts else None
-                payload = build_chat_completion_payload(
-                    model=request.model,
-                    chunk=chunk,
-                    research_artifacts=artifacts,
-                )
-                yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
-                yield "data: [DONE]\n\n"
-
-            return StreamingResponse(sse_with_progress(), media_type="text/event-stream")
-
-        state = await agent.ainvoke_compound(
-            lc_messages,
-            progress_queue=None,
-            run_label=compound_label,
-        )
+        state = await agent.ainvoke_compound(lc_messages, run_label=compound_label)
         chunk = compound_state_to_chunk(state)
         artifacts = compound_artifacts_from_state(state) if request.include_research_artifacts else None
 
@@ -108,9 +76,6 @@ async def create_chat_completion(
         chunk=chunk,
         research_artifacts=artifacts,
     )
-
-    if request.stream:
-        return StreamingResponse(_sse_final_only(payload), media_type="text/event-stream")
 
     return JSONResponse(content=payload)
 
@@ -136,9 +101,3 @@ async def _instantiate_agent(
         return await raw
 
     return raw
-
-
-async def _sse_final_only(payload: dict[str, Any]) -> AsyncIterator[str]:
-    yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
-
-    yield "data: [DONE]\n\n"
