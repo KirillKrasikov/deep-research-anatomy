@@ -68,6 +68,26 @@ uv sync
 | `LANGFUSE_BASE_URL` | Опционально; по умолчанию `http://localhost:3000` |
 | `ANTHROPIC_BASE_URL` | Опционально; прокси или совместимый endpoint |
 
+### Langfuse
+
+Для запуска **нужен Langfuse** — через него идёт трейсинг, ключи `LANGFUSE_*`
+обязательны. Можно взять управляемое облако
+([cloud.langfuse.com](https://cloud.langfuse.com), тогда задайте
+`LANGFUSE_BASE_URL=https://cloud.langfuse.com`) либо поднять локально через
+Docker Compose ([docs](https://langfuse.com/self-hosting/deployment/docker-compose)):
+
+```bash
+git clone https://github.com/langfuse/langfuse.git
+cd langfuse
+docker compose up
+```
+
+UI откроется на `http://localhost:3000` (совпадает с дефолтным `LANGFUSE_BASE_URL`).
+Создайте аккаунт, организацию и проект, затем в настройках проекта сгенерируйте
+API-ключи и пропишите их в `.env` (`LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`).
+Self-hosted-вариант через `docker compose up` рассчитан на локальную разработку;
+для прода см. документацию Langfuse.
+
 Запуск:
 
 ```bash
