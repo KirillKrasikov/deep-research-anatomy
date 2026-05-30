@@ -13,6 +13,7 @@ from langfuse.langchain import CallbackHandler
 
 from app.agents.compound_researcher import CompoundResearchAgent
 from app.agents.react_researcher import ReactResearchAgent
+from app.agents.supervisor_researcher import SupervisorResearchAgent
 from app.settings import Settings, get_settings
 
 
@@ -92,6 +93,12 @@ class Container(DeclarativeContainer):
         provides=CompoundResearchAgent,
         llm=llm_balanced,
         compress_llm=llm_fast,
+        langfuse_callback_handler=langfuse_callback_handler,
+    )
+    supervisor_researcher = Factory(
+        provides=SupervisorResearchAgent,
+        llm=llm_balanced,
+        researcher=react_researcher,
         langfuse_callback_handler=langfuse_callback_handler,
     )
 

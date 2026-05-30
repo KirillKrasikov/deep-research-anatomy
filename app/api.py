@@ -50,6 +50,10 @@ async def create_chat_completion(
         Callable[[], BaseResearchAgent | Awaitable[BaseResearchAgent]],
         Depends(Provide[Container.compound_researcher.provider]),
     ],
+    supervisor_factory: Annotated[
+        Callable[[], BaseResearchAgent | Awaitable[BaseResearchAgent]],
+        Depends(Provide[Container.supervisor_researcher.provider]),
+    ],
 ) -> StreamingResponse | JSONResponse:
     if not any(m.role == "user" for m in request.messages):
         raise HTTPException(
@@ -58,7 +62,7 @@ async def create_chat_completion(
         )
 
     lc_messages = chat_messages_to_langchain(request.messages)
-    agent = await _instantiate_agent(request.model, react_factory, compound_factory)
+    agent = await _instantiate_agent(request.model, react_factory, compound_factory, supervisor_factory)
 
     if isinstance(agent, CompoundResearchAgent):
         compound_label = build_compound_run_label(request.model, lc_messages)
@@ -115,11 +119,15 @@ async def _instantiate_agent(
     model: str,
     react_factory: Callable[[], BaseResearchAgent | Awaitable[BaseResearchAgent]],
     compound_factory: Callable[[], BaseResearchAgent | Awaitable[BaseResearchAgent]],
+    supervisor_factory: Callable[[], BaseResearchAgent | Awaitable[BaseResearchAgent]],
 ) -> BaseResearchAgent:
     # Зависимости Agent-фабрик тянут async Resource (langfuse) — sync-вызов фабрики отдаёт Future.
     match model:
         case AssistantType.COMPOUND:
             raw = compound_factory()
+
+        case AssistantType.SUPERVISOR_RESEARCHER:
+            raw = supervisor_factory()
 
         case _:
             raw = react_factory()

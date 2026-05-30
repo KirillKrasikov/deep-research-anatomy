@@ -19,3 +19,7 @@ class ResearcherState(TypedDict, total=False):
     messages: Annotated[list[BaseMessage], add_messages]
     notes: str
     completed_tool_rounds: int
+
+
+class SupervisorResearcherState(TypedDict, total=False):
+    messages: Annotated[list[BaseMessage], add_messages]
