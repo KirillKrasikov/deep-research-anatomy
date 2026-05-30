@@ -12,7 +12,7 @@ from langfuse import Langfuse
 from langfuse.langchain import CallbackHandler
 
 from app.agents.compound_researcher import CompoundResearchAgent
-from app.agents.react_researcher import ReactResearchAgent
+from app.agents.react_researcher import WEB_SEARCH_MAX_USES_STANDALONE, ReactResearchAgent
 from app.agents.supervisor_researcher import SupervisorResearchAgent
 from app.settings import Settings, get_settings
 
@@ -42,7 +42,7 @@ def langfuse_callback_handler_manager(langfuse: Langfuse, settings: Settings) ->
     return CallbackHandler(public_key=settings.langfuse_public_key)
 
 
-def _get_chat_anthropic(settings: Settings, model: str) -> ChatAnthropic:
+def _get_chat_anthropic(settings: Settings, model: str, *, use_effort: bool = True) -> ChatAnthropic:
     _apply_anthropic_retry_backoff(settings)
 
     return ChatAnthropic(
@@ -51,13 +51,14 @@ def _get_chat_anthropic(settings: Settings, model: str) -> ChatAnthropic:
         api_key=settings.anthropic_api_key,
         base_url=settings.anthropic_base_url.encoded_string(),
         max_tokens=settings.anthropic_max_tokens,
-        effort=settings.anthropic_effort,
+        # haiku не принимает effort — параметр выставляем только там, где модель его поддерживает.
+        effort=settings.anthropic_effort if use_effort else None,
         max_retries=settings.anthropic_max_retries,
     )
 
 
 def llm_fast_manager(settings: Settings) -> ChatAnthropic:
-    return _get_chat_anthropic(settings, settings.anthropic_model_fast)
+    return _get_chat_anthropic(settings, settings.anthropic_model_fast, use_effort=False)
 
 
 def llm_balanced_manager(settings: Settings) -> ChatAnthropic:
@@ -88,6 +89,13 @@ class Container(DeclarativeContainer):
         provides=ReactResearchAgent,
         llm=llm_balanced,
         langfuse_callback_handler=langfuse_callback_handler,
+        web_search_max_uses=WEB_SEARCH_MAX_USES_STANDALONE,
+    )
+    # Узкий react для роли sub-researcher внутри supervisor_researcher (дефолтный бюджет поиска).
+    react_subresearcher = Factory(
+        provides=ReactResearchAgent,
+        llm=llm_balanced,
+        langfuse_callback_handler=langfuse_callback_handler,
     )
     compound_researcher = Factory(
         provides=CompoundResearchAgent,
@@ -98,7 +106,7 @@ class Container(DeclarativeContainer):
     supervisor_researcher = Factory(
         provides=SupervisorResearchAgent,
         llm=llm_balanced,
-        researcher=react_researcher,
+        researcher=react_subresearcher,
         langfuse_callback_handler=langfuse_callback_handler,
     )
 
