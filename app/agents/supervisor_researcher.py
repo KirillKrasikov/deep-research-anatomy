@@ -45,11 +45,17 @@ SUPERVISOR_SYSTEM_PROMPT = """Ты supervisor исследования. Отде
 - структура по ключевым вопросам запроса; целься в полноту покрытия, сравнительные выводы с рекомендацией,
   точное следование исходному запросу, читаемость (заголовки, короткие абзацы, таблицы для сравнений);
 - факты, цифры и URL — только из ответов researchers, дословно; ничего из собственных знаний;
+  не выдумывай ссылки: если URL для утверждения нет в ответах researchers — оставь его без ссылки;
 - ссылайся [N], в конце раздел `## Sources` с дедуплицированным списком URL;
 - держись рамок запроса, без лишних тем.
 
 Сегодня: {today}.
 """
+
+_RESEARCHER_TASK_TEMPLATE = """Задача: {task}
+
+Заверши ответ разделом «## Sources» со списком реальных URL из результатов поиска (по строке на источник).
+Если по задаче ничего не нашлось — прямо напиши об этом и не выдумывай источники."""
 
 
 def build_dispatch_tool(researcher: ReactResearchAgent) -> BaseTool:
@@ -57,9 +63,9 @@ def build_dispatch_tool(researcher: ReactResearchAgent) -> BaseTool:
     async def dispatch_researcher(task: str) -> str:
         """Запускает researcher (ReAct + web_search) по одной узкой задаче.
 
-        Возвращает сырой ответ researcher с найденными фактами и источниками.
+        Возвращает сырой ответ researcher с найденными фактами и источниками (URL).
         """
-        chunk = await researcher.complete([HumanMessage(f"Задача: {task}")])
+        chunk = await researcher.complete([HumanMessage(_RESEARCHER_TASK_TEMPLATE.format(task=task))])
 
         return content_to_text(chunk.content)
 
