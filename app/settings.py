@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     anthropic_api_key: SecretStr
     anthropic_model_fast: str = "claude-haiku-4-5-20251001"
     anthropic_model_balanced: str = "claude-sonnet-4-6"
-    anthropic_model_sota: str = "claude-opus-4-7"
+    anthropic_model_sota: str = "claude-opus-4-8"
     anthropic_max_tokens: int = 32_000
     anthropic_effort: str = "high"
     anthropic_max_retries: int = Field(default=3, ge=0, le=15)
